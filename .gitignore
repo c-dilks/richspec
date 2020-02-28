@@ -1,2 +1,4 @@
 *.root
 *.bin
+.*.sw*
+*.pdf
