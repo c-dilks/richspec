@@ -1,73 +1,112 @@
+// options:
+Bool_t viewPdf = 1; // view pdf after execution
+Bool_t printSpectra = 1; // print ADC spectra to pdf
+/////
+
 Int_t pedBin;
 Double_t pedPeak;
 Double_t pedADC;
+Bool_t first = 1;
 
 Double_t findThreshold(TH1I * spec);
+void printCanv(TCanvas * canvas, TString pdf, Bool_t lastPage=0);
 
-void findLevel(TString infileN="run_000001.bin.hist.root") {
+void findLevel(
+  TString infileN="../data/726_728_729_2020_02_25_06_33/run_000001.bin.hist.root",
+  Bool_t loopMode = 0
+  ) {
 
   TFile * infile = new TFile(infileN,"READ");
   Double_t threshold;
   Int_t thresholdBin,maxBin;
-  Double_t numEvents;
   TString specName;
 
   TCanvas * canv = new TCanvas("canv","canv",800,800);
   canv->SetLogy();
+  TString pdfName = infileN;
+  pdfName(TRegexp(".bin.hist.root$")) = ".pdf";
   TLine * thresholdLine = new TLine();
   thresholdLine->SetLineColor(kBlue);
   thresholdLine->SetLineWidth(3);
 
+  Double_t numEvents,mu;
+  Double_t muMax = 0;
   TLatex * numEventsTex = new TLatex();
   numEventsTex->SetNDC(true);
   TString numEventsStr;
   TGraph * numEventsGr = new TGraph();
-  numEventsGr->SetMarkerColor(kRed);
-  numEventsGr->SetMarkerStyle(kFullCircle);
+  TGraph * muGr = new TGraph();
+  numEventsGr->SetMarkerColor(kBlue); numEventsGr->SetMarkerStyle(kFullCircle);
   numEventsGr->SetTitle("number of events above threshold vs. channel;channel;numEvents");
-  Int_t numEventsGrCnt = 0;
+  muGr->SetMarkerColor(kRed); muGr->SetMarkerStyle(kFullCircle);
+  muGr->SetTitle("#mu vs. channel;channel;#mu");
+  Int_t grCnt = 0;
 
   TH1I * spec;
   Int_t chan;
   TKey * key;
   TIter next(gDirectory->GetListOfKeys());
-  Bool_t first = true;
   Int_t limit = 0;
-  TString suffix;
   while((key=(TKey*)next())) {
     //if(limit++>10) break;
     specName = TString(key->GetName());
     if(specName.Contains(TRegexp("^hspe")) && !strcmp(key->GetClassName(),"TH1I")) {
+      spec = (TH1I*) key->ReadObj();
+
+      // get channel
+      sscanf(spec->GetName(),"hspe%d",&chan);
 
       // find threshold
-      spec = (TH1I*) key->ReadObj();
       threshold = findThreshold(spec);
       thresholdBin = spec->FindBin(threshold);
 
-      // get number of events above threshold
+      // get number of events above threshold, and calculate mu
       maxBin = spec->GetNbinsX();
       numEvents = spec->Integral(thresholdBin,maxBin);
       numEventsStr = Form("numEv = %.0f",numEvents);
       numEventsTex->SetText(0.5,0.2,numEventsStr);
-      sscanf(spec->GetName(),"hspe%d",&chan);
-      numEventsGr->SetPoint(numEventsGrCnt++,chan,numEvents);
+      numEventsGr->SetPoint(grCnt,chan,numEvents);
+      mu = -TMath::Log(1-numEvents/spec->GetEntries());
+      muMax = mu>muMax ? mu:muMax;
+      muGr->SetPoint(grCnt,chan,mu);
+      grCnt++;
       
 
-      // draw
-      spec->Draw();
-      spec->GetXaxis()->SetRangeUser(pedADC-100,pedADC+500);
-      thresholdLine->DrawLine(threshold,0,threshold,pedPeak);
-      numEventsTex->Draw();
-      suffix = first ? "(":"";
-      canv->Print(TString("canv.pdf"+suffix),"pdf");
-      first = false;
+      // draw spectrum
+      if(printSpectra) {
+        spec->Draw();
+        spec->GetXaxis()->SetRangeUser(pedADC-100,pedADC+500);
+        thresholdLine->DrawLine(threshold,0,threshold,pedPeak);
+        numEventsTex->Draw();
+        printCanv(canv,pdfName);
+      };
 
     };
   };
-  canv->SetLogy(0);
-  numEventsGr->Draw("AP");
-  canv->Print("canv.pdf)","pdf");
 
+  // draw other graphs
+  canv->SetLogy(0);
+  canv->SetGrid(1,1);
+  //numEventsGr->GetXaxis()->SetRangeUser(-1,193);
+  numEventsGr->Draw("AP");
+  printCanv(canv,pdfName);
+  muGr->Draw("AP");
+  muGr->GetYaxis()->SetRangeUser(0,muMax*1.1);
+  printCanv(canv,pdfName);
+
+  // print config
+  canv->Clear();
+  TString infileLog = infileN;
+  infileLog(TRegexp(".bin.hist.root$")) = ".log";
+  TString parseCmd = ".! ./parseConfig.sh " + infileLog + " > tempo";
+  gROOT->ProcessLine(parseCmd);
+  TPaveText * configText = new TPaveText(0.05,0.05,0.95,0.95,"NDC");
+  configText->ReadFile("tempo");
+  gROOT->ProcessLine(".! rm tempo");
+  configText->Draw();
+  printCanv(canv,pdfName,1);
+
+  if(viewPdf && !loopMode) gROOT->ProcessLine(TString(".! zathura "+pdfName));
 };
 
 
@@ -110,7 +149,14 @@ Double_t findThreshold(TH1I * spec) {
       break;
     };
   };
-  //printf("adcLev=%f\n",adcLev);
+  //printf("adcLev=%.0f  numEntries=%.0f\n",adcLev,spec->GetEntries());
   if(specDeriv) delete specDeriv;
   return adcLev;
+};
+
+void printCanv(TCanvas * canvas, TString pdf, Bool_t lastPage) {
+  TString suffix = first ? "(":"";
+  if(lastPage) suffix = ")";
+  canvas->Print(TString(pdf+suffix),"pdf");
+  first = 0;
 };
