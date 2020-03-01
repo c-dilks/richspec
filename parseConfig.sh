@@ -19,3 +19,4 @@ grab laser y
 grab mapmt hv
 grab mapmt id
 grab maroc id
+grab log events
