@@ -4,7 +4,7 @@
 
 
 // OPTIONS:
-Bool_t viewPdf = 1; // view pdf after execution
+Bool_t viewPdf = 0; // view pdf after execution
 ///////////
 
 // global vars
@@ -113,7 +113,7 @@ void analyseSpectra(
       numEventsStr = Form("numEv = %.0f",numEvents);
       numEventsTex->SetText(0.5,0.2,numEventsStr);
       numEventsGr[pmt]->SetPoint(grCnt[pmt],chan,numEvents);
-      mu = -TMath::Log(1-numEvents/spec->GetEntries());
+      mu = numEvents<spec->GetEntries() ? -TMath::Log(1-numEvents/spec->GetEntries()) : 0;
       muMax = mu>muMax ? mu:muMax;
       muGr[pmt]->SetPoint(grCnt[pmt],chan,mu);
       grCnt[pmt]++;
@@ -139,6 +139,7 @@ void analyseSpectra(
 
 
   // generate textbox from config log file
+  printf("parse config file...\n");
   pad = 1; canvPlot->cd(pad);
   TString infileLog = infileN;
   infileLog(TRegexp(".bin.hist.root$")) = ".log";
@@ -150,16 +151,21 @@ void analyseSpectra(
   configText->Draw();
 
   // draw numEvents plots
+  printf("draw NumEvents...\n");
   pad = 3; canvPlot->cd(pad);
   canvPlot->GetPad(pad)->SetGrid(1,1);
   numEventsMgr->Draw("AP");
+  printf("draw mu...\n");
   pad = 5; canvPlot->cd(pad);
   canvPlot->GetPad(pad)->SetGrid(1,1);
+  muGr[1]->Print();
+  numEventsGr[1]->Print();
   muMgr->Draw("AP");
   muMgr->GetYaxis()->SetRangeUser(0,muMax*1.1);
 
 
   // draw numEventsPix
+  printf("draw pixels...\n");
   gStyle->SetOptStat(0);
   for(int p=0; p<3; p++) { 
     pad = (p+1)*2;
@@ -205,14 +211,14 @@ Double_t findThreshold(TH1I * spec) {
   // search for threshold, using a moving average of `np` points
   Double_t ave;
   Double_t adcLev;
-  const Int_t np=5;
+  const Int_t np=3;
   for(int p=0; p<specDeriv->GetN(); p++) {
     ave = 0;
     for(int q=0; q<np; q++) {
       specDeriv->GetPoint(p+q,adc,deriv);
       ave += deriv/np;
     };
-    if(fabs(ave)<5) {
+    if(ave>-50) {
       specDeriv->GetPoint(p,adcLev,deriv);
       break;
     };
