@@ -2,7 +2,6 @@
 
 #include "tools.C"
 
-
 // OPTIONS:
 Bool_t viewPdf = 0; // view pdf after execution
 ///////////
@@ -23,10 +22,6 @@ void analyseSpectra(
 
   // open file
   TFile * infile = new TFile(infileN,"READ");
-
-  // load tools
-  //gSystem->Load("tools.C");
-  //gROOT->LoadMacro("tools.C");
 
   // define canvas and pdf name
   TCanvas * canvSpec = new TCanvas("canvSpec","canvSpec",800,800);
