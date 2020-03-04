@@ -16,7 +16,8 @@ grab run id
 grab laser w
 grab laser x
 grab laser y
-grab mapmt hv
 grab mapmt id
 grab maroc id
+grab mapmt hv
+grab maroc gain_default
 grab log events
