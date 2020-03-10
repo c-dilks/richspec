@@ -16,7 +16,7 @@ void printCanv(TCanvas * canvas, TString pdf, Bool_t lastPage=0);
 
 // MAIN
 void analyseSpectra(
-  TString infileN="../data/726_728_729_2020_02_25_06_33/run_000001.bin.hist.root",
+  TString infileN="../data/726_728_729_2020_03_09_21_55/run_000273.bin.hist.root",
   Bool_t loopMode = 0
   ) {
 
@@ -203,24 +203,26 @@ Double_t findThreshold(TH1I * spec) {
     if(deriv<200) specDeriv->SetPoint(cnt++,adc,deriv);
   };
 
-  // search for threshold, using a moving average of `np` points
+  // search for threshold, using a moving average of `np` points of the derivative
   Double_t ave;
   Double_t adcLev;
-  const Int_t np=3;
+  const Int_t np=30; // <-- number of points to average
+  const Int_t slopeCut=-5; // <-- if the average is above this value, set threshold here
+  const Double_t buffer=10; // <-- push the threshold upward by this many ADC counts
   for(int p=0; p<specDeriv->GetN(); p++) {
     ave = 0;
     for(int q=0; q<np; q++) {
       specDeriv->GetPoint(p+q,adc,deriv);
       ave += deriv/np;
     };
-    if(ave>-50) {
+    if(ave>slopeCut) {
       specDeriv->GetPoint(p,adcLev,deriv);
       break;
     };
   };
   //printf("adcLev=%.0f  numEntries=%.0f\n",adcLev,spec->GetEntries());
   if(specDeriv) delete specDeriv;
-  return adcLev;
+  return adcLev + buffer;
 };
 
 // print canvas to a pdf page
