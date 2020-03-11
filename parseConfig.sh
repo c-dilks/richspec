@@ -1,4 +1,5 @@
 #!/bin/bash
+# parse config log file
 
 if [ $# -ne 1 ]; then echo "usage: $0 [logFile]"; exit; fi
 f=$1

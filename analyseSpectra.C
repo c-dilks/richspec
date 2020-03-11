@@ -3,7 +3,7 @@
 #include "tools.C"
 
 // OPTIONS:
-Bool_t viewPdf = 0; // view pdf after execution
+Bool_t viewPdf = 1; // view pdf after execution
 ///////////
 
 // global vars
@@ -13,15 +13,22 @@ Double_t pedADC;
 Bool_t first = 1;
 Double_t findThreshold(TH1I * spec);
 void printCanv(TCanvas * canvas, TString pdf, Bool_t lastPage=0);
+void formatGraphs(TGraph ** gr);
 
 // MAIN
 void analyseSpectra(
-  TString infileN="../data/726_728_729_2020_03_09_21_55/run_000273.bin.hist.root",
+  TString infileN="../data/726_728_729_2020_03_10_17_11/run_000123.bin.hist.root",
   Bool_t loopMode = 0
   ) {
 
   // open file
   TFile * infile = new TFile(infileN,"READ");
+
+  // define table file
+  TString tableFile = infileN;
+  tableFile(TRegexp(".bin.hist.root$")) = ".table.dat";
+  gSystem->RedirectOutput(tableFile,"w");
+  gSystem->RedirectOutput(0);
 
   // define canvas and pdf name
   TCanvas * canvSpec = new TCanvas("canvSpec","canvSpec",800,800);
@@ -40,7 +47,7 @@ void analyseSpectra(
 
 
   // define numEvents vars
-  Double_t numEvents,mu;
+  Double_t numEvents,mu,delta;
   Double_t muMax = 0;
   TLatex * numEventsTex = new TLatex();
   numEventsTex->SetNDC(true);
@@ -48,27 +55,27 @@ void analyseSpectra(
 
   TMultiGraph * numEventsMgr = new TMultiGraph();
   TMultiGraph * muMgr = new TMultiGraph();
+  TMultiGraph * deltaMgr = new TMultiGraph();
   TGraph * numEventsGr[3];
   TGraph * muGr[3];
+  TGraph * deltaGr[3];
   Int_t grCnt[3];
   for(int p=0; p<3; p++) {
     numEventsGr[p] = new TGraph();
     muGr[p] = new TGraph();
-    numEventsGr[p]->SetMarkerStyle(kFullCircle);
-    muGr[p]->SetMarkerStyle(kFullCircle);
+    deltaGr[p] = new TGraph();
     numEventsMgr->Add(numEventsGr[p]);
     muMgr->Add(muGr[p]);
+    deltaMgr->Add(deltaGr[p]);
     grCnt[p] = 0;
   };
   numEventsMgr->SetTitle(
     "number of events above threshold vs. MAROC channel;MAROC channel;numEvents");
   muMgr->SetTitle("#mu vs. MAROC channel;MAROC channel;#mu");
-  numEventsGr[0]->SetMarkerColor(kRed);
-  numEventsGr[1]->SetMarkerColor(kGreen+1);
-  numEventsGr[2]->SetMarkerColor(kBlue);
-  muGr[0]->SetMarkerColor(kRed);
-  muGr[1]->SetMarkerColor(kGreen+1);
-  muGr[2]->SetMarkerColor(kBlue);
+  deltaMgr->SetTitle("#delta vs. MAROC channel;MAROC channel;#delta");
+  formatGraphs(numEventsGr);
+  formatGraphs(muGr);
+  formatGraphs(deltaGr);
 
   TH2D * numEventsPix[3]; // [pmt]
   TString numEventsPixN,numEventsPixT;
@@ -102,17 +109,31 @@ void analyseSpectra(
       threshold = findThreshold(spec);
       thresholdBin = spec->FindBin(threshold);
 
-      // get number of events above threshold, and calculate mu
+      // get number of events above threshold
       maxBin = spec->GetNbinsX();
       numEvents = spec->Integral(thresholdBin,maxBin);
       numEventsStr = Form("numEv = %.0f",numEvents);
       numEventsTex->SetText(0.5,0.2,numEventsStr);
       numEventsGr[pmt]->SetPoint(grCnt[pmt],chan,numEvents);
+      numEventsPix[pmt]->Fill(xPix(pix),yPix(pix),numEvents);
+
+      // calculate delta
+      delta = threshold - pedADC;
+      deltaGr[pmt]->SetPoint(grCnt[pmt],chan,delta);
+
+      // calculate mu
       mu = numEvents<spec->GetEntries() ? -TMath::Log(1-numEvents/spec->GetEntries()) : 0;
       muMax = mu>muMax ? mu:muMax;
       muGr[pmt]->SetPoint(grCnt[pmt],chan,mu);
+
+      // increment graph points counter
       grCnt[pmt]++;
-      numEventsPix[pmt]->Fill(xPix(pix),yPix(pix),numEvents);
+
+      // output to data table
+      gSystem->RedirectOutput(tableFile,"a");
+      printf("%d %f %f\n",chan,mu,delta);
+      gSystem->RedirectOutput(0);
+
       
       // draw spectrum
       spec->Draw();
@@ -134,7 +155,6 @@ void analyseSpectra(
 
 
   // generate textbox from config log file
-  printf("parse config file...\n");
   pad = 1; canvPlot->cd(pad);
   TString infileLog = infileN;
   infileLog(TRegexp(".bin.hist.root$")) = ".log";
@@ -145,22 +165,23 @@ void analyseSpectra(
   gROOT->ProcessLine(".! rm tempo");
   configText->Draw();
 
-  // draw numEvents plots
-  printf("draw NumEvents...\n");
+  // draw plots vs. MAROC channel
+  /*
   pad = 3; canvPlot->cd(pad);
   canvPlot->GetPad(pad)->SetGrid(1,1);
   numEventsMgr->Draw("AP");
-  printf("draw mu...\n");
-  pad = 5; canvPlot->cd(pad);
+  */
+  pad = 3; canvPlot->cd(pad);
   canvPlot->GetPad(pad)->SetGrid(1,1);
-  muGr[1]->Print();
-  numEventsGr[1]->Print();
   muMgr->Draw("AP");
   muMgr->GetYaxis()->SetRangeUser(0,muMax*1.1);
 
+  pad = 5; canvPlot->cd(pad);
+  canvPlot->GetPad(pad)->SetGrid(1,1);
+  deltaMgr->Draw("AP");
+  deltaMgr->GetYaxis()->SetRangeUser(0,150);
 
   // draw numEventsPix
-  printf("draw pixels...\n");
   gStyle->SetOptStat(0);
   for(int p=0; p<3; p++) { 
     pad = (p+1)*2;
@@ -174,7 +195,9 @@ void analyseSpectra(
   printCanv(canvPlot,pdfPlotN,1);
 
 
-  if(viewPdf && !loopMode) gROOT->ProcessLine(TString(".! zathura "+pdfPlotN));
+  if(viewPdf && !loopMode) {
+    gROOT->ProcessLine(TString(".! zathura "+pdfSpecN+" "+pdfPlotN));
+  };
 };
 
 
@@ -205,17 +228,32 @@ Double_t findThreshold(TH1I * spec) {
 
   // search for threshold, using a moving average of `np` points of the derivative
   Double_t ave;
+  Double_t height;
   Double_t adcLev;
-  const Int_t np=30; // <-- number of points to average
-  const Int_t slopeCut=-5; // <-- if the average is above this value, set threshold here
-  const Double_t buffer=10; // <-- push the threshold upward by this many ADC counts
+
+  ///////////////////////////////
+  // ALGORITHM TUNE PARAMS:
+  // -- number of points to average in the moving average
+  const Int_t np=30; 
+  // -- the average must be greater than slopeCut
+  const Double_t slopeCut=-0.5;
+  // -- height = difference between first and last point over average;
+  //    this height must be smaller than heightCut
+  const Double_t heightCut=30; 
+  // -- push the threshold upward by this many ADC counts, to ensure we are away from
+  //    crosstalk region
+  const Double_t buffer=10; 
+  ///////////////////////////////
+
   for(int p=0; p<specDeriv->GetN(); p++) {
     ave = 0;
     for(int q=0; q<np; q++) {
       specDeriv->GetPoint(p+q,adc,deriv);
       ave += deriv/np;
+      if(q==0) height=deriv;
+      if(q+1==np) height-=deriv;
     };
-    if(ave>slopeCut) {
+    if(ave>slopeCut && height<heightCut) {
       specDeriv->GetPoint(p,adcLev,deriv);
       break;
     };
@@ -232,4 +270,14 @@ void printCanv(TCanvas * canvas, TString pdf, Bool_t lastPage) {
   if(first && lastPage) suffix = "";
   canvas->Print(TString(pdf+suffix),"pdf");
   first = 0;
+};
+
+// format graph colors and styles
+void formatGraphs(TGraph ** gr) {
+  for(int g=0; g<3; g++) {
+    gr[g]->SetMarkerStyle(kFullCircle);
+  };
+  gr[0]->SetMarkerColor(kRed);
+  gr[1]->SetMarkerColor(kGreen+1);
+  gr[2]->SetMarkerColor(kBlue);
 };
