@@ -17,7 +17,7 @@ void formatGraphs(TGraph ** gr);
 
 // MAIN
 void analyseSpectra(
-  TString infileN="../data/753_760_752_2020_03_11_06_54/run_000001.bin.hist.root",
+  TString infileN="datadir/run_000123.bin.hist.root",
   Bool_t loopMode = 0
   ) {
 
@@ -137,7 +137,7 @@ void analyseSpectra(
       
       // draw spectrum
       spec->Draw();
-      //spec->GetXaxis()->SetRangeUser(pedADC-100,pedADC+500);
+      spec->GetXaxis()->SetRangeUser(pedADC-100,pedADC+500); // zoom range
       thresholdLine->DrawLine(threshold,0,threshold,pedPeak);
       numEventsTex->Draw();
       printCanv(canvSpec,pdfSpecN);

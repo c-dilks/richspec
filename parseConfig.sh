@@ -1,5 +1,5 @@
 #!/bin/bash
-# parse config log file
+# parse config log file; this is called by analyseSpectra.C
 
 if [ $# -ne 1 ]; then echo "usage: $0 [logFile]"; exit; fi
 f=$1

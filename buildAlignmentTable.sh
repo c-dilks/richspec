@@ -1,14 +1,11 @@
 #!/bin/bash
-# builds table used for alignment studies
-
-if [ $# -ne 1 ]; then echo "usage: $0 [dataDir]"; exit; fi
-dataDir=$1
+# builds table used for alignment studies; called by buildAlignment.C
 
 function getVal { 
   grep -w $1 $configfile | awk '{print $3}' | sed 's/;$//'
 }
 
-pushd $dataDir
+pushd datadir
 > alignment.dat
 for datfile in *.dat; do
   echo "read $datfile"

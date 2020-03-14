@@ -3,16 +3,19 @@
 #include "tools.C"
 
 // laser positions
+/*
 const Int_t minPos[2] = { 100,  10 };
 const Int_t maxPos[2] = { 300, 130 };
 const Int_t stepSize[2] = { 10, 10 };
+*/
 // maximum filterNum
 const Int_t filterMax = 8;
+enum xy {kX,kY};
 
 TTree * tr;
-Int_t runnum,x,y,chan;
+Int_t runnum,chan;
+Int_t laserPos[2];
 Float_t mu,delta;
-enum xy {kX,kY};
 const Int_t nPMT = 3;
 Float_t muMin,muMax;
 Int_t muBins;
@@ -28,6 +31,7 @@ TH2D * aveMu[nPMT];
 TH2D * devMu[nPMT];
 TH1D * muHist;
 TCanvas * canv;
+TString datadir="datadir";
 
 void analyse(Int_t filterNum=0);
 Bool_t checkFilter(Int_t filter, Int_t px);
@@ -36,20 +40,42 @@ Bool_t checkFilter(Int_t filter, Int_t px);
 //////////////////////////////////////////////////////
 
 
-void alignmentAnalysis(TString datadir="726_728_729_2020_03_10_17_11") {
-  // read alignment table
-  TString table = "../data/"+datadir+"/alignment.dat";
+void alignmentAnalysis() {
+  // build table of laser positions and mu values
+  gROOT->ProcessLine(".! buildAlignmentTable.sh");
+  TString table = datadir+"/alignment.dat";
   tr = new TTree("tr","tr");
   tr->ReadFile(table,"runnum/I:x/I:y/I:chan/I:mu/F:delta/F");
   tr->SetBranchAddress("runnum",&runnum);
-  tr->SetBranchAddress("x",&x);
-  tr->SetBranchAddress("y",&y);
+  tr->SetBranchAddress("x",&laserPos[kX]);
+  tr->SetBranchAddress("y",&laserPos[kY]);
   tr->SetBranchAddress("chan",&chan);
   tr->SetBranchAddress("mu",&mu);
   tr->SetBranchAddress("delta",&delta);
 
-  // set binning from laser positions
+  // determine laser position matrix; assumes uniform step size
+  Int_t minPos[2];
+  Int_t maxPos[2];
+  Int_t stepSize[2];
+  minPos[kX] = tr->GetMinimum("x");
+  minPos[kY] = tr->GetMinimum("y");
+  maxPos[kX] = tr->GetMaximum("x");
+  maxPos[kY] = tr->GetMaximum("y");
+  Int_t laserPosTmp[2];
+  for(int i=0; i<tr->GetEntries(); i++) {
+    tr->GetEntry(i);
+    if(i==0) { for(c=0; c<2; c++) laserPosTmp[c]=laserPos[c]; };
+    for(c=0; c<2; c++) {
+      if(laserPos[c]!=laserPosTmp[c]) {
+        stepSize[c] = abs(laserPos[c]-laserPosTmp[c]);
+        laserPosTmp[c] = laserPos[c];
+      };
+    };
+  };
   for(c=0; c<2; c++) {
+    printf("--- laser %s range: %d - %d, step=%d\n",
+    c==kX?"x":"y",minPos[c],maxPos[c],stepSize[c]);
+    // binning:
     lb[c] = minPos[c]-stepSize[c]/2;
     ub[c] = maxPos[c]+stepSize[c]/2;
     nb[c] = (maxPos[c]-minPos[c])/stepSize[c]+1;
@@ -77,6 +103,8 @@ void alignmentAnalysis(TString datadir="726_728_729_2020_03_10_17_11") {
     aveMu[p]->SetMaximum(muMax*0.7);
     devMu[p]->SetMinimum(0);
     devMu[p]->SetMaximum(0.2);
+    aveMu[p]->SetMarkerSize(0.6);
+    devMu[p]->SetMarkerSize(0.6);
   };
   muHist = new TH1D("muHist","muHist",muBins,muMin,muMax);
   canv = new TCanvas("canv","canv",1800,700);
@@ -111,7 +139,7 @@ void analyse(Int_t filterNum=0) {
     tr->GetEntry(i);
     pmt = chan2pmt(chan);
     pix = chan2pix(chan);
-    if(checkFilter(filterNum,pix)) dataMu[pmt]->Fill(x,y,mu);
+    if(checkFilter(filterNum,pix)) dataMu[pmt]->Fill(laserPos[kX],laserPos[kY],mu);
   };
 
   // get average and stddev mu
@@ -140,10 +168,13 @@ void analyse(Int_t filterNum=0) {
   canv->cd(nPMT+1); 
   canv->GetPad(nPMT+1)->SetGrid(1,1);
   filterPix->Draw("col");
-  TString pdfName = "canvAlignment.pdf";
-  if(filterNum==0) pdfName+="(";
-  if(filterNum==filterMax) pdfName+=")";
-  canv->Print(pdfName,"pdf");
+  TString pdfName = datadir+"/alignmentPlots.pdf";
+  TString suffix = "";
+  if(filterNum==0) suffix="(";
+  if(filterNum==filterMax) suffix=")";
+  canv->Print(TString(pdfName+suffix),"pdf");
+
+  if(filterNum==filterMax) gROOT->ProcessLine(TString(".! ./renameFile.sh "+pdfName));
 };
 
 
