@@ -2,12 +2,6 @@
 
 #include "tools.C"
 
-// laser positions
-/*
-const Int_t minPos[2] = { 100,  10 };
-const Int_t maxPos[2] = { 300, 130 };
-const Int_t stepSize[2] = { 10, 10 };
-*/
 // maximum filterNum
 const Int_t filterMax = 8;
 enum xy {kX,kY};
