@@ -17,7 +17,7 @@ void formatGraphs(TGraph ** gr);
 
 // MAIN
 void analyseSpectra(
-  TString infileN="datadir/run_000123.bin.hist.root",
+  TString infileN="datadir/run_000004.bin.hist.root",
   Bool_t loopMode = 0
   ) {
 
@@ -179,7 +179,7 @@ void analyseSpectra(
   pad = 5; canvPlot->cd(pad);
   canvPlot->GetPad(pad)->SetGrid(1,1);
   deltaMgr->Draw("AP");
-  deltaMgr->GetYaxis()->SetRangeUser(0,150);
+  //deltaMgr->GetYaxis()->SetRangeUser(0,150);
 
   // draw numEventsPix
   gStyle->SetOptStat(0);
@@ -209,9 +209,26 @@ Double_t findThreshold(TH1I * spec) {
   pedPeak = spec->GetBinContent(pedBin);
   pedADC = spec->GetBinCenter(pedBin);
   //printf("pedestal: bin=%d ADC=%f peak=%f\n",pedBin,pedADC,pedPeak);
+  
+
+  ///////////////////////////////
+  // ALGORITHM TUNE PARAMS:
+  // -- stencil spacing for 5-point numerical derivative
+  const Int_t h=3;
+  // -- number of points to average in the moving average
+  const Int_t np=10; 
+  // -- the average must be greater than slopeCut
+  const Double_t slopeCut=-30;
+  // -- height = difference between first and last point over average;
+  //    this height must be smaller than heightCut
+  //const Double_t heightCut=300; 
+  // -- push the threshold upward by this many ADC counts, to ensure we are away from
+  //    crosstalk region
+  const Double_t buffer=10; 
+  ///////////////////////////////
+
 
   // evaluate numerical derivative with 5-stencil, with point spacing `h`
-  const Int_t h=5;
   Double_t stencil[5];
   Int_t s;
   Double_t adc,deriv;
@@ -231,20 +248,6 @@ Double_t findThreshold(TH1I * spec) {
   Double_t height;
   Double_t adcLev;
 
-  ///////////////////////////////
-  // ALGORITHM TUNE PARAMS:
-  // -- number of points to average in the moving average
-  const Int_t np=30; 
-  // -- the average must be greater than slopeCut
-  const Double_t slopeCut=-0.5;
-  // -- height = difference between first and last point over average;
-  //    this height must be smaller than heightCut
-  const Double_t heightCut=30; 
-  // -- push the threshold upward by this many ADC counts, to ensure we are away from
-  //    crosstalk region
-  const Double_t buffer=10; 
-  ///////////////////////////////
-
   for(int p=0; p<specDeriv->GetN(); p++) {
     ave = 0;
     for(int q=0; q<np; q++) {
@@ -253,7 +256,7 @@ Double_t findThreshold(TH1I * spec) {
       if(q==0) height=deriv;
       if(q+1==np) height-=deriv;
     };
-    if(ave>slopeCut && height<heightCut) {
+    if(ave>slopeCut /*&& height<heightCut*/) {
       specDeriv->GetPoint(p,adcLev,deriv);
       break;
     };
