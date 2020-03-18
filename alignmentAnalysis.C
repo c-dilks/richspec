@@ -96,7 +96,7 @@ void alignmentAnalysis() {
     aveMu[p]->SetMinimum(0);
     aveMu[p]->SetMaximum(muMax*0.7);
     devMu[p]->SetMinimum(0);
-    devMu[p]->SetMaximum(0.2);
+    devMu[p]->SetMaximum(0.015);
     aveMu[p]->SetMarkerSize(0.6);
     devMu[p]->SetMarkerSize(0.6);
   };

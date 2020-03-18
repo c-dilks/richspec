@@ -17,7 +17,7 @@ void formatGraphs(TGraph ** gr);
 
 // MAIN
 void analyseSpectra(
-  TString infileN="datadir/run_000004.bin.hist.root",
+  TString infileN="datadir/run_000052.bin.hist.root",
   Bool_t loopMode = 0
   ) {
 
