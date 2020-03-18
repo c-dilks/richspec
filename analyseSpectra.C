@@ -4,6 +4,8 @@
 
 // OPTIONS:
 Bool_t viewPdf = 1; // view pdf after execution
+Double_t muMaxPlot = 0.18; // if nonzero, override "muMax" for setting
+                           // the plot scales below
 ///////////
 
 // global vars
@@ -17,7 +19,7 @@ void formatGraphs(TGraph ** gr);
 
 // MAIN
 void analyseSpectra(
-  TString infileN="datadir/run_000052.bin.hist.root",
+  TString infileN="datadir/run_000223.bin.hist.root",
   Bool_t loopMode = 0
   ) {
 
@@ -77,12 +79,12 @@ void analyseSpectra(
   formatGraphs(muGr);
   formatGraphs(deltaGr);
 
-  TH2D * numEventsPix[3]; // [pmt]
-  TString numEventsPixN,numEventsPixT;
+  TH2D * muPix[3]; // [pmt]
+  TString muPixN,muPixT;
   for(int p=0; p<3; p++) {
-    numEventsPixN = Form("numEventsPix%d",p+1);
-    numEventsPixT = Form("number of events per pixel - PMT %d",p+1);
-    numEventsPix[p] = new TH2D(numEventsPixN,numEventsPixT,8,0,8,8,0,8);
+    muPixN = Form("muPix%d",p+1);
+    muPixT = Form("#mu for each pixel of PMT %d",p+1);
+    muPix[p] = new TH2D(muPixN,muPixT,8,0,8,8,0,8);
   };
   Int_t pmt,pix;
 
@@ -115,7 +117,6 @@ void analyseSpectra(
       numEventsStr = Form("numEv = %.0f",numEvents);
       numEventsTex->SetText(0.5,0.2,numEventsStr);
       numEventsGr[pmt]->SetPoint(grCnt[pmt],chan,numEvents);
-      numEventsPix[pmt]->Fill(xPix(pix),yPix(pix),numEvents);
 
       // calculate delta
       delta = threshold - pedADC;
@@ -125,6 +126,7 @@ void analyseSpectra(
       mu = numEvents<spec->GetEntries() ? -TMath::Log(1-numEvents/spec->GetEntries()) : 0;
       muMax = mu>muMax ? mu:muMax;
       muGr[pmt]->SetPoint(grCnt[pmt],chan,mu);
+      muPix[pmt]->Fill(xPix(pix),yPix(pix),mu);
 
       // increment graph points counter
       grCnt[pmt]++;
@@ -157,12 +159,14 @@ void analyseSpectra(
   // generate textbox from config log file
   pad = 1; canvPlot->cd(pad);
   TString infileLog = infileN;
+  TString tmpFile = infileN;
   infileLog(TRegexp(".bin.hist.root$")) = ".log";
-  TString parseCmd = ".! ./parseConfig.sh " + infileLog + " > tempo";
+  tmpFile(TRegexp(".bin.hist.root$")) = ".tmp";
+  TString parseCmd = ".! ./parseConfig.sh " + infileLog + " > " + tmpFile;
   gROOT->ProcessLine(parseCmd);
   TPaveText * configText = new TPaveText(0.05,0.05,0.95,0.95,"NDC");
-  configText->ReadFile("tempo");
-  gROOT->ProcessLine(".! rm tempo");
+  configText->ReadFile(tmpFile);
+  gROOT->ProcessLine(TString(".! rm "+tmpFile));
   configText->Draw();
 
   // draw plots vs. MAROC channel
@@ -174,15 +178,16 @@ void analyseSpectra(
   pad = 3; canvPlot->cd(pad);
   canvPlot->GetPad(pad)->SetGrid(1,1);
   muMgr->Draw("AP");
-  muMgr->GetYaxis()->SetRangeUser(0,muMax*1.1);
+  muMgr->GetYaxis()->SetRangeUser(0,muMaxPlot>0?muMaxPlot:muMax*1.1);
 
   pad = 5; canvPlot->cd(pad);
   canvPlot->GetPad(pad)->SetGrid(1,1);
   deltaMgr->Draw("AP");
   //deltaMgr->GetYaxis()->SetRangeUser(0,150);
 
-  // draw numEventsPix
+  // draw muPix
   gStyle->SetOptStat(0);
+  gStyle->SetPaintTextFormat(".2g");
   for(int p=0; p<3; p++) { 
     pad = (p+1)*2;
     canvPlot->cd(pad);
@@ -190,7 +195,10 @@ void analyseSpectra(
     canvPlot->GetPad(pad)->SetLogx(0);
     canvPlot->GetPad(pad)->SetLogy(0);
     canvPlot->GetPad(pad)->SetLogz(0);
-    numEventsPix[p]->Draw("colz"); 
+    muPix[p]->SetMarkerSize(0.7);
+    muPix[p]->SetMinimum(0);
+    muPix[p]->SetMaximum(muMaxPlot>0?muMaxPlot:muMax);
+    muPix[p]->Draw("colztext"); 
   };
   printCanv(canvPlot,pdfPlotN,1);
 
