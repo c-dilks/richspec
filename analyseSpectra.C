@@ -2,11 +2,20 @@
 
 #include "tools.C"
 
+///////////////////////////////////////////////////////////////////
+//
 // OPTIONS:
+//
 Bool_t viewPdf = 1; // view pdf after execution
 Double_t muMaxPlot = 0.18; // if nonzero, override "muMax" for setting
                            // the plot scales below
-///////////
+Int_t MODE = 0; // 0 - determine the threshold
+                // 1 - determine the threshold, and output it to a file
+                // 2 - do not determine threshold, but read it from a file
+Int_t SIMPLE = 20; // 0 - use numerical derivative to find threshold
+                   // >0 - set threshold at `SIMPLE` counts above threshold
+//
+///////////////////////////////////////////////////////////////////
 
 // global vars
 Int_t pedBin;
@@ -14,12 +23,16 @@ Double_t pedPeak;
 Double_t pedADC;
 Bool_t first = 1;
 Double_t findThreshold(TH1I * spec);
+Double_t readThreshold(Int_t channel);
 void printCanv(TCanvas * canvas, TString pdf, Bool_t lastPage=0);
 void formatGraphs(TGraph ** gr);
+TTree * threshTable;
+Int_t rChan;
+Float_t rThresh;
 
 // MAIN
 void analyseSpectra(
-  TString infileN="datadir/run_000223.bin.hist.root",
+  TString infileN="datadir/run_000261.bin.hist.root",
   Bool_t loopMode = 0
   ) {
 
@@ -40,16 +53,29 @@ void analyseSpectra(
   TString pdfSpecN = rootN + ".spectra.pdf";
   TString pdfPlotN = rootN + ".plots.pdf";
 
+  // define threshold file name (for storing thresholds)
+  TString threshFile = "datadir/thresholds.dat";
+  if(MODE==1) {
+    gSystem->RedirectOutput(threshFile,"w");
+    gSystem->RedirectOutput(0);
+  } else if(MODE==2) {
+    threshTable = new TTree();
+    threshTable->ReadFile(threshFile,"rChan/I:rThresh/F");
+    threshTable->SetBranchAddress("rChan",&rChan);
+    threshTable->SetBranchAddress("rThresh",&rThresh);
+  };
+
+
   // define threshold vars
-  Double_t threshold;
-  Int_t thresholdBin,maxBin;
+  Double_t thresh;
+  Int_t threshBin,maxBin;
   TLine * thresholdLine = new TLine();
   thresholdLine->SetLineColor(kBlue);
   thresholdLine->SetLineWidth(3);
 
 
   // define numEvents vars
-  Double_t numEvents,mu,delta;
+  Double_t numEvents,mu;
   Double_t muMax = 0;
   TLatex * numEventsTex = new TLatex();
   numEventsTex->SetNDC(true);
@@ -57,27 +83,27 @@ void analyseSpectra(
 
   TMultiGraph * numEventsMgr = new TMultiGraph();
   TMultiGraph * muMgr = new TMultiGraph();
-  TMultiGraph * deltaMgr = new TMultiGraph();
+  TMultiGraph * threshMgr = new TMultiGraph();
   TGraph * numEventsGr[3];
   TGraph * muGr[3];
-  TGraph * deltaGr[3];
+  TGraph * threshGr[3];
   Int_t grCnt[3];
   for(int p=0; p<3; p++) {
     numEventsGr[p] = new TGraph();
     muGr[p] = new TGraph();
-    deltaGr[p] = new TGraph();
+    threshGr[p] = new TGraph();
     numEventsMgr->Add(numEventsGr[p]);
     muMgr->Add(muGr[p]);
-    deltaMgr->Add(deltaGr[p]);
+    threshMgr->Add(threshGr[p]);
     grCnt[p] = 0;
   };
   numEventsMgr->SetTitle(
     "number of events above threshold vs. MAROC channel;MAROC channel;numEvents");
   muMgr->SetTitle("#mu vs. MAROC channel;MAROC channel;#mu");
-  deltaMgr->SetTitle("#delta vs. MAROC channel;MAROC channel;#delta");
+  threshMgr->SetTitle("threshold vs. MAROC channel;MAROC channel;threshold");
   formatGraphs(numEventsGr);
   formatGraphs(muGr);
-  formatGraphs(deltaGr);
+  formatGraphs(threshGr);
 
   TH2D * muPix[3]; // [pmt]
   TString muPixN,muPixT;
@@ -107,20 +133,40 @@ void analyseSpectra(
       pmt = chan2pmt(chan);
       pix = chan2pix(chan);
 
+      // locate pedestal
+      pedBin = spec->GetMaximumBin();
+      pedPeak = spec->GetBinContent(pedBin);
+      pedADC = spec->GetBinCenter(pedBin);
+      //printf("pedestal: bin=%d ADC=%f peak=%f\n",pedBin,pedADC,pedPeak);
+
       // find threshold
-      threshold = findThreshold(spec);
-      thresholdBin = spec->FindBin(threshold);
+      switch(MODE) {
+        case 0:
+          thresh = findThreshold(spec);
+          break;
+        case 1:
+          thresh = findThreshold(spec);
+          gSystem->RedirectOutput(threshFile,"a");
+          printf("%d %f\n",chan,thresh);
+          gSystem->RedirectOutput(0);
+          break;
+        case 2:
+          thresh = readThreshold(chan);
+          break;
+        default:
+          fprintf(stderr,"ERROR: bad MODE setting\n");
+          return;
+      };
+      threshBin = spec->FindBin(thresh);
+      threshGr[pmt]->SetPoint(grCnt[pmt],chan,thresh);
 
       // get number of events above threshold
       maxBin = spec->GetNbinsX();
-      numEvents = spec->Integral(thresholdBin,maxBin);
+      numEvents = spec->Integral(threshBin,maxBin);
       numEventsStr = Form("numEv = %.0f",numEvents);
       numEventsTex->SetText(0.5,0.2,numEventsStr);
       numEventsGr[pmt]->SetPoint(grCnt[pmt],chan,numEvents);
 
-      // calculate delta
-      delta = threshold - pedADC;
-      deltaGr[pmt]->SetPoint(grCnt[pmt],chan,delta);
 
       // calculate mu
       mu = numEvents<spec->GetEntries() ? -TMath::Log(1-numEvents/spec->GetEntries()) : 0;
@@ -133,14 +179,14 @@ void analyseSpectra(
 
       // output to data table
       gSystem->RedirectOutput(tableFile,"a");
-      printf("%d %f %f\n",chan,mu,delta);
+      printf("%d %f %f\n",chan,mu,thresh);
       gSystem->RedirectOutput(0);
 
       
       // draw spectrum
       spec->Draw();
       spec->GetXaxis()->SetRangeUser(pedADC-100,pedADC+500); // zoom range
-      thresholdLine->DrawLine(threshold,0,threshold,pedPeak);
+      thresholdLine->DrawLine(thresh,0,thresh,pedPeak);
       numEventsTex->Draw();
       printCanv(canvSpec,pdfSpecN);
 
@@ -182,8 +228,8 @@ void analyseSpectra(
 
   pad = 5; canvPlot->cd(pad);
   canvPlot->GetPad(pad)->SetGrid(1,1);
-  deltaMgr->Draw("AP");
-  //deltaMgr->GetYaxis()->SetRangeUser(0,150);
+  threshMgr->Draw("AP");
+  //threshMgr->GetYaxis()->SetRangeUser(0,150);
 
   // draw muPix
   gStyle->SetOptStat(0);
@@ -212,15 +258,10 @@ void analyseSpectra(
 // method to find threshold
 Double_t findThreshold(TH1I * spec) {
 
-  // locate pedestal
-  pedBin = spec->GetMaximumBin();
-  pedPeak = spec->GetBinContent(pedBin);
-  pedADC = spec->GetBinCenter(pedBin);
-  //printf("pedestal: bin=%d ADC=%f peak=%f\n",pedBin,pedADC,pedPeak);
-  
+  if(SIMPLE>0) return pedADC + SIMPLE;
 
   ///////////////////////////////
-  // ALGORITHM TUNE PARAMS:
+  // THRESHOLD FINDER TUNE PARAMS:
   // -- stencil spacing for 5-point numerical derivative
   const Int_t h=3;
   // -- number of points to average in the moving average
@@ -234,7 +275,6 @@ Double_t findThreshold(TH1I * spec) {
   //    crosstalk region
   const Double_t buffer=10; 
   ///////////////////////////////
-
 
   // evaluate numerical derivative with 5-stencil, with point spacing `h`
   Double_t stencil[5];
@@ -291,4 +331,14 @@ void formatGraphs(TGraph ** gr) {
   gr[0]->SetMarkerColor(kRed);
   gr[1]->SetMarkerColor(kGreen+1);
   gr[2]->SetMarkerColor(kBlue);
+};
+
+// read threshold for a specific channel
+Double_t readThreshold(Int_t channel) {
+  for(int i=0; i<threshTable->GetEntries(); i++) {
+    threshTable->GetEntry(i);
+    if(rChan==channel) return rThresh;
+  };
+  fprintf(stderr,"ERROR: threshold not found in readThreshold\n");
+  return 0;
 };

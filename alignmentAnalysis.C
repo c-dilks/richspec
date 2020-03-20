@@ -9,7 +9,7 @@ enum xy {kX,kY};
 TTree * tr;
 Int_t runnum,chan;
 Int_t laserPos[2];
-Float_t mu,delta;
+Float_t mu,thresh;
 const Int_t nPMT = 3;
 Float_t muMin,muMax;
 Int_t muBins;
@@ -39,13 +39,13 @@ void alignmentAnalysis() {
   gROOT->ProcessLine(".! buildAlignmentTable.sh");
   TString table = datadir+"/alignment.dat";
   tr = new TTree("tr","tr");
-  tr->ReadFile(table,"runnum/I:x/I:y/I:chan/I:mu/F:delta/F");
+  tr->ReadFile(table,"runnum/I:x/I:y/I:chan/I:mu/F:thresh/F");
   tr->SetBranchAddress("runnum",&runnum);
   tr->SetBranchAddress("x",&laserPos[kX]);
   tr->SetBranchAddress("y",&laserPos[kY]);
   tr->SetBranchAddress("chan",&chan);
   tr->SetBranchAddress("mu",&mu);
-  tr->SetBranchAddress("delta",&delta);
+  tr->SetBranchAddress("thresh",&thresh);
 
   // determine laser position matrix; assumes uniform step size
   Int_t minPos[2];

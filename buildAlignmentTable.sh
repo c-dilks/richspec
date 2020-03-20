@@ -7,7 +7,7 @@ function getVal {
 
 pushd datadir
 > alignment.dat
-for datfile in *.dat; do
+for datfile in *.table.dat; do
   echo "read $datfile"
   configfile=$(echo $datfile|sed 's/table\.dat$/log/')
   runnum=$(getVal runID)
