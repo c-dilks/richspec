@@ -7,12 +7,12 @@
 // OPTIONS:
 //
 Bool_t viewPdf = 1; // view pdf after execution
-Double_t muMaxPlot = 0.18; // if nonzero, override "muMax" for setting
+Double_t muMaxPlot = 0.22; // if nonzero, override "muMax" for setting
                            // the plot scales below
-Int_t MODE = 0; // 0 - determine the threshold
+Int_t MODE = 2; // 0 - determine the threshold
                 // 1 - determine the threshold, and output it to a file
                 // 2 - do not determine threshold, but read it from a file
-Int_t SIMPLE = 20; // 0 - use numerical derivative to find threshold
+Int_t SIMPLE = 30; // 0 - use numerical derivative to find threshold
                    // >0 - set threshold at `SIMPLE` counts above threshold
 //
 ///////////////////////////////////////////////////////////////////
@@ -32,7 +32,7 @@ Float_t rThresh;
 
 // MAIN
 void analyseSpectra(
-  TString infileN="datadir/run_000261.bin.hist.root",
+  TString infileN="datadir/run_000001.bin.hist.root",
   Bool_t loopMode = 0
   ) {
 

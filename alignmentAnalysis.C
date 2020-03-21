@@ -50,7 +50,7 @@ void alignmentAnalysis() {
   // determine laser position matrix; assumes uniform step size
   Int_t minPos[2];
   Int_t maxPos[2];
-  Int_t stepSize[2];
+  Int_t stepSize[2] = {0,0};
   minPos[kX] = tr->GetMinimum("x");
   minPos[kY] = tr->GetMinimum("y");
   maxPos[kX] = tr->GetMaximum("x");
@@ -70,9 +70,15 @@ void alignmentAnalysis() {
     printf("--- laser %s range: %d - %d, step=%d\n",
     c==kX?"x":"y",minPos[c],maxPos[c],stepSize[c]);
     // binning:
-    lb[c] = minPos[c]-stepSize[c]/2;
-    ub[c] = maxPos[c]+stepSize[c]/2;
-    nb[c] = (maxPos[c]-minPos[c])/stepSize[c]+1;
+    if(stepSize[c]>0) {
+      lb[c] = minPos[c]-stepSize[c]/2;
+      ub[c] = maxPos[c]+stepSize[c]/2;
+      nb[c] = (maxPos[c]-minPos[c])/stepSize[c]+1;
+    } else {
+      lb[c] = minPos[c]-0.5;
+      ub[c] = maxPos[c]+0.5;
+      nb[c] = 1;
+    };
   };
 
   // initialize histos
@@ -93,10 +99,10 @@ void alignmentAnalysis() {
     hN = Form("devMu%d",p+1);
     hT = Form("stddev #mu for PMT %d",p+1);
     devMu[p] = new TH2D(hN,hT,nb[kX],lb[kX],ub[kX],nb[kY],lb[kY],ub[kY]);
-    aveMu[p]->SetMinimum(0);
-    aveMu[p]->SetMaximum(muMax*0.7);
-    devMu[p]->SetMinimum(0);
-    devMu[p]->SetMaximum(0.015);
+    //aveMu[p]->SetMinimum(0);
+    //aveMu[p]->SetMaximum(muMax*0.7);
+    //devMu[p]->SetMinimum(0);
+    //devMu[p]->SetMaximum(0.015);
     aveMu[p]->SetMarkerSize(0.6);
     devMu[p]->SetMarkerSize(0.6);
   };
