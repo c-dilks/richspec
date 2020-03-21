@@ -23,6 +23,9 @@ TH2D * filterPix;
 TH3D * dataMu[nPMT];
 TH2D * aveMu[nPMT];
 TH2D * devMu[nPMT];
+TH1D * aveMuProj[nPMT][2];
+TH1D * devMuProj[nPMT][2];
+enum xy_enum {eX,eY};
 TH1D * muHist;
 TCanvas * canv;
 TString datadir="datadir";
@@ -107,8 +110,8 @@ void alignmentAnalysis() {
     devMu[p]->SetMarkerSize(0.6);
   };
   muHist = new TH1D("muHist","muHist",muBins,muMin,muMax);
-  canv = new TCanvas("canv","canv",1800,700);
-  canv->Divide(nPMT+1,2);
+  canv = new TCanvas("canv","canv",2000,2000);
+  canv->Divide(nPMT+1,6);
 
   // call analyse
   for(int f=0; f<=filterMax; f++) analyse(f);
@@ -158,12 +161,30 @@ void analyse(Int_t filterNum=0) {
     };
   };
 
+  // projections
+  TString aveMuT,devMuT;
+  for(int p=0; p<nPMT; p++) {
+    aveMuT = aveMu[p]->GetTitle();
+    devMuT = devMu[p]->GetTitle();
+    aveMuProj[p][eX] = aveMu[p]->ProjectionX();
+    aveMuProj[p][eX]->SetTitle(TString("X-projection of "+aveMuT));
+    aveMuProj[p][eY] = aveMu[p]->ProjectionY();
+    aveMuProj[p][eY]->SetTitle(TString("Y-projection of "+aveMuT));
+    devMuProj[p][eX] = devMu[p]->ProjectionX();
+    devMuProj[p][eX]->SetTitle(TString("X-projection of "+devMuT));
+    devMuProj[p][eY] = devMu[p]->ProjectionY();
+    devMuProj[p][eY]->SetTitle(TString("Y-projection of "+devMuT));
+  };
+  
+
   // draw
   for(int p=0; p<nPMT; p++) {
-    canv->cd(p+1);
-    aveMu[p]->Draw("colztext");
-    canv->cd(nPMT+p+2);
-    devMu[p]->Draw("colztext");
+    canv->cd(0*nPMT+p+1); aveMu[p]->Draw("colztext");
+    canv->cd(1*nPMT+p+2); aveMuProj[p][eX]->Draw();
+    canv->cd(2*nPMT+p+3); aveMuProj[p][eY]->Draw();
+    canv->cd(3*nPMT+p+4); devMu[p]->Draw("colztext");
+    canv->cd(4*nPMT+p+5); devMuProj[p][eX]->Draw();
+    canv->cd(5*nPMT+p+6); devMuProj[p][eY]->Draw();
   };
   canv->cd(nPMT+1); 
   canv->GetPad(nPMT+1)->SetGrid(1,1);
