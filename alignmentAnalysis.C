@@ -32,6 +32,7 @@ TString datadir="datadir";
 
 void analyse(Int_t filterNum=0);
 Bool_t checkFilter(Int_t filter, Int_t px);
+TCanvas * drawMuVsXY(Int_t chanReq=16, Int_t slice=2, Int_t sliceVal=0);
 
 
 //////////////////////////////////////////////////////
@@ -39,7 +40,7 @@ Bool_t checkFilter(Int_t filter, Int_t px);
 
 void alignmentAnalysis() {
   // build table of laser positions and mu values
-  gROOT->ProcessLine(".! buildAlignmentTable.sh");
+  //gROOT->ProcessLine(".! buildAlignmentTable.sh");
   TString table = datadir+"/alignment.dat";
   tr = new TTree("tr","tr");
   tr->ReadFile(table,"runnum/I:x/I:y/I:chan/I:mu/F:thresh/F");
@@ -114,7 +115,20 @@ void alignmentAnalysis() {
   canv->Divide(nPMT+1,6);
 
   // call analyse
-  for(int f=0; f<=filterMax; f++) analyse(f);
+  //for(int f=0; f<=filterMax; f++) analyse(f);
+
+  // print extra plots
+  TString mupdfName = datadir+"/alignmentMuVsXY.pdf";
+  TString mupdfNameL = mupdfName+"(";
+  TString mupdfNameR = mupdfName+")";
+  Int_t chanRequested = 16;
+  drawMuVsXY(chanRequested,2)->Print(mupdfNameL,"pdf");
+  drawMuVsXY(chanRequested,kY,30)->Print(mupdfName,"pdf"); // for 726...
+  //drawMuVsXY(chanRequested,kY,110)->Print(mupdfName,"pdf"); // for 753...
+  drawMuVsXY(chanRequested,kX,155)->Print(mupdfName,"pdf");
+  drawMuVsXY(chanRequested,kX,210)->Print(mupdfName,"pdf");
+  drawMuVsXY(chanRequested,kX,270)->Print(mupdfNameR,"pdf");
+  gROOT->ProcessLine(TString(".! ./renameFile.sh "+mupdfName));
 };
 
 
@@ -174,6 +188,10 @@ void analyse(Int_t filterNum=0) {
     devMuProj[p][eX]->SetTitle(TString("X-projection of "+devMuT));
     devMuProj[p][eY] = devMu[p]->ProjectionY();
     devMuProj[p][eY]->SetTitle(TString("Y-projection of "+devMuT));
+    for(int c=0; c<2; c++) {
+      aveMuProj[p][c]->SetMinimum(0);
+      devMuProj[p][c]->SetMinimum(0);
+    };
   };
   
 
@@ -233,4 +251,84 @@ Bool_t checkFilter(Int_t filter, Int_t px) {
       break;
     default: return false;
   };
+};
+
+
+
+// draws mu vs. laser (x,y) for a particular channel `chanReq`
+// - chanReq is assumed to be in [0,63]; all three PMTs corresponding pixels will be drawn
+// - if slice=2, draw 2d plot
+// - if slice=kX, draw slice x=sliceVal, a 1d plot binned in y
+// - if slice=kY, draw slice y=sliceVal, a 1d plot binned in x
+TCanvas * drawMuVsXY(Int_t chanReq=16, Int_t slice=2, Int_t sliceVal=0) {
+
+  TString sfx = Form("%d_%d_%d",chanReq,slice,sliceVal);
+  TString canvN = "muXY_"+sfx;
+  TCanvas * canvMuXY = new TCanvas(canvN,canvN,2000,500);
+
+  chanReq = chanReq % 64;
+  TH1D * d1[3];
+  TH2D * d2[3];
+  TString dN,dT;
+  for(int p=0; p<3; p++) {
+    dN = Form("d%d_%s",p,sfx.Data());
+    switch(slice) {
+      case 2:
+        dT = Form("#mu versus laser (x,y) -- PMT%d chan%d;x;y;#mu",p+1,chanReq);
+        d2[p] = new TH2D(dN,dT,nb[kX],lb[kX],ub[kX],nb[kY],lb[kY],ub[kY]);
+        d2[p]->SetMarkerSize(0.3);
+        break;
+      case kX:
+        dT = Form("#mu vs. laser y for slice x=%d -- PMT%d chan%d;y;#mu",sliceVal,p+1,chanReq); 
+        d1[p] = new TH1D(dN,dT,nb[kY],lb[kY],ub[kY]);
+        break;
+      case kY:
+        dT = Form("#mu vs. laser x for slice y=%d -- PMT%d chan%d;x;#mu",sliceVal,p+1,chanReq); 
+        d1[p] = new TH1D(dN,dT,nb[kX],lb[kX],ub[kX]);
+        break;
+      default:
+        fprintf(stderr,"ERROR: bad slice value");
+        return canvMuXY;
+    };
+  };
+
+  Int_t bin;
+  for(int i=0; i<tr->GetEntries(); i++) {
+    tr->GetEntry(i);
+    if(chan%64==chanReq) {
+      pmt = chan2pmt(chan);
+      if(slice==2) {
+        bin = d2[pmt]->FindBin(laserPos[kX],laserPos[kY]);
+        d2[pmt]->SetBinContent(bin,mu);
+      }
+      else if(slice==kX) {
+        if(laserPos[kX]==sliceVal) {
+          bin = d1[pmt]->FindBin(laserPos[kY]);
+          d1[pmt]->SetBinContent(bin,mu);
+        }
+      }
+      else if(slice==kY) {
+        if(laserPos[kY]==sliceVal) {
+          bin = d1[pmt]->FindBin(laserPos[kX]);
+          d1[pmt]->SetBinContent(bin,mu);
+        }
+      }
+    };
+  };
+
+  canvMuXY->Divide(3,1);
+  for(int p=0; p<3; p++) {
+    canvMuXY->cd(p+1);
+    if(slice==2) {
+      d2[p]->SetMinimum(0);
+      d2[p]->SetMaximum(muMax);
+      d2[p]->Draw("colztext");
+    } else {
+      canvMuXY->GetPad(p+1)->SetGrid(1,1);
+      d1[p]->GetYaxis()->SetRangeUser(0,muMax);
+      d1[p]->Draw();
+    };
+  };
+
+  return canvMuXY;
 };

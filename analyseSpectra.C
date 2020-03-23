@@ -7,12 +7,15 @@
 // OPTIONS:
 //
 Bool_t viewPdf = 1; // view pdf after execution
-Double_t muMaxPlot = 0.22; // if nonzero, override "muMax" for setting
+Double_t muMaxPlot = 0.09; // if nonzero, override "muMax" for setting
                            // the plot scales below
 Int_t MODE = 2; // 0 - determine the threshold
-                // 1 - determine the threshold, and output it to a file
+                // 1 - determine the threshold, and output it to a file 
+                //     `thresholds.dat`, (use this for only one runid)
                 // 2 - do not determine threshold, but read it from a file
-Int_t SIMPLE = 30; // 0 - use numerical derivative to find threshold
+                //     `thresholds.dat` (note that all runids will read
+                //     this file!)
+Int_t SIMPLE = 50; // 0 - use numerical derivative to find threshold
                    // >0 - set threshold at `SIMPLE` counts above threshold
 //
 ///////////////////////////////////////////////////////////////////
