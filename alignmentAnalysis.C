@@ -40,7 +40,7 @@ TCanvas * drawMuVsXY(Int_t chanReq=16, Int_t slice=2, Int_t sliceVal=0);
 
 void alignmentAnalysis() {
   // build table of laser positions and mu values
-  //gROOT->ProcessLine(".! buildAlignmentTable.sh");
+  gROOT->ProcessLine(".! buildAlignmentTable.sh");
   TString table = datadir+"/alignment.dat";
   tr = new TTree("tr","tr");
   tr->ReadFile(table,"runnum/I:x/I:y/I:chan/I:mu/F:thresh/F");
@@ -115,14 +115,14 @@ void alignmentAnalysis() {
   canv->Divide(nPMT+1,6);
 
   // call analyse
-  //for(int f=0; f<=filterMax; f++) analyse(f);
+  for(int f=0; f<=filterMax; f++) analyse(f);
 
-  // print extra plots
+  // print extra plots for mu vs. (x,y), or slices in x or y
   TString mupdfName = datadir+"/alignmentMuVsXY.pdf";
   TString mupdfNameL = mupdfName+"(";
   TString mupdfNameR = mupdfName+")";
   Int_t chanRequested = 16;
-  drawMuVsXY(chanRequested,2)->Print(mupdfNameL,"pdf");
+  drawMuVsXY(chanRequested)->Print(mupdfNameL,"pdf");
   drawMuVsXY(chanRequested,kY,30)->Print(mupdfName,"pdf"); // for 726...
   //drawMuVsXY(chanRequested,kY,110)->Print(mupdfName,"pdf"); // for 753...
   drawMuVsXY(chanRequested,kX,155)->Print(mupdfName,"pdf");
